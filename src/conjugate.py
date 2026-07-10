@@ -1,4 +1,5 @@
-from bayes import factorial
+from src.bayes import factorial
+
 class BetaBinomial:
     def __init__(self, alpha: float = 1, beta: float = 1):
         """
