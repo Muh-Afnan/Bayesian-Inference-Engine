@@ -1,55 +1,28 @@
 # Learnings
 
-## Skewness — The Most Surprising Thing
+## Key Concepts
 
-Before this day, the intuition was that all distributions converge to Gaussian roughly at the same speed. The convergence speed plot proved this wrong.
+**Hypotheses vs prior** — hypotheses are the possible states of the world (coin bias = 0.1, 0.5, 0.6, 0.9). Prior is how much you believe each one before seeing data. They are parallel lists — index 0 of hypotheses pairs with index 0 of prior.
 
-Symmetric distributions — Uniform, Gaussian — have near-zero skewness to begin with. Their sample means look Gaussian even at small sample sizes like n=5. The convergence is almost instant.
+**Discrete vs continuous inference** — discrete inference forces the true parameter into predefined buckets. If the true bias is 0.63 and your buckets are [0.1, 0.5, 0.6, 0.9], you can never find it. Beta-Binomial removes this constraint entirely.
 
-Skewed distributions — Exponential, Bernoulli with extreme p — have high skewness. Their sample means take much longer to look Gaussian. Exponential(λ=1) needs sample sizes around 30-50 before the skewness drops close to zero.
+**Conjugate priors are elegant** — the Beta distribution is conjugate to the Binomial likelihood. This means the posterior has the same form as the prior. No integration, no approximation — just add heads to α and tails to β.
 
-This matters practically. When you use CLT-based statistical tests, the required sample size depends on how skewed your underlying distribution is. For symmetric data, n=10 might be enough. For heavily skewed data, you might need n=100 or more.
+**Strong priors resist evidence, but not forever** — a 90% prior on h=0.1 is completely overwhelmed by 10 flips showing 7 heads. With small data (3 flips), the prior dominates. With large data, evidence always wins.
 
-The `plot_convergence_speed` function made this visible in a way no textbook description had before.
+**Beta(1,1) is a flat line** — it encodes zero opinion, not zero probability. Every bias between 0 and 1 is equally likely. This is the correct uninformative starting point.
 
----
+## Bugs Fixed
 
-## The Slider — Seeing Is Different From Knowing
+- **Combination formula wrong**: used `n_fact - r_fact` instead of `factorial(n - k)` in the denominator
+- **Float passed to factorial**: type hint doesn't enforce types in Python — fixed with explicit `int(n)` cast
+- **n and k swapped in update() call**: `update(7, 10)` passed data=7, n=10 correctly but the internal call had them reversed — caused `factorial(-3)` and infinite recursion
+- **norm_constant used hypotheses values**: was multiplying likelihood by hypothesis values (0.1, 0.5 etc) instead of prior weights
+- **likelihood looped over prior**: used `self.prior` instead of `self.hypotheses` in the Binomial formula — computed wrong probabilities entirely
 
-Knowing that "sample means converge to Gaussian as n increases" is one thing. Watching it happen is completely different.
+## Surprises
 
-At n=1, the histogram matches the original distribution's shape — flat for Uniform, skewed right for Exponential. Dragging the slider to n=5 and the shape already starts pulling inward. At n=30 it is clearly a bell curve. At n=100 it is tight and symmetric.
-
-The slider compressed what would take 10 separate charts into a single continuous experience. The transformation feels physical. That's the difference between reading a theorem and having a proof you can interact with.
-
----
-
-## Plotting Was the Hardest Part
-
-Four specific challenges in order of difficulty:
-
-**`density=True`** — not obvious why this is required until you see the histogram and Gaussian curve on completely different scales without it. The histogram shows counts (hundreds), the Gaussian PDF shows density (fractions). They cannot be compared without normalisation.
-
-**Overlaying curves** — matplotlib layers plots automatically. Each `ax.plot` and `ax.hist` call adds to the same axes. This felt implicit and confusing at first. The mental model that helped: think of each call as placing a transparent layer on the same canvas.
-
-**Subplots** — `axes[0]` vs `axes[0, 0]` depending on 1D vs 2D grid. The indexing convention takes getting used to.
-
-**The slider** — most challenging by far. The `on_changed` callback pattern is not intuitive. The key insight that made it work: `ax.clear()` before redrawing. Without clearing, slider moves stack histograms on top of each other and the plot becomes unreadable. Once `ax.clear()` was understood as "reset the canvas before each redraw," the slider logic became straightforward.
-
----
-
-## The Standard Error Formula
-
-```
-σ_mean = σ / √n
-```
-
-This is not just a formula — it explains why sample size matters. Doubling n does not halve the uncertainty, it reduces it by `1/√2`. To halve uncertainty you need to quadruple n. This is why data collection is expensive — precision improves slowly with sample size.
-
----
-
-## CLT Limitations — What It Doesn't Guarantee
-
-CLT requires finite mean and variance. Distributions with infinite variance (Cauchy distribution) do not satisfy CLT — their sample means never converge to Gaussian. This is a real edge case in heavy-tailed financial data where CLT-based assumptions break down.
-
-CLT describes the distribution of sample means — not individual samples. Raw samples from an Exponential distribution will always look Exponential regardless of how many you collect.
+- A 90% prior on h=0.1 cannot survive 10 flips of 7 heads — the likelihood ratio is too extreme
+- Beta(1,1) looks like a uniform distribution because it is one — over the continuous interval [0,1]
+- The normalising constant P(E) has no meaning on its own — it only exists to make the posterior sum to 1
+- Sequential updating and single-batch updating with the same total evidence give identical posteriors — order doesn't matter, only counts do

@@ -1,88 +1,114 @@
-# Day 7 — Central Limit Theorem: Interactive Visual Proof
+# Day 8 — Bayesian Inference Engine
 
-An interactive simulator that proves the Central Limit Theorem visually. Drag a slider and watch any distribution's sample means converge to a Gaussian bell curve in real time.
+A Bayesian inference engine built from scratch. No scipy. No stats libraries. Pure Python math.
 
-## What This Does
+## What It Does
 
-- Simulates thousands of sampling experiments from any distribution
-- Plots the distribution of sample means vs theoretical Gaussian prediction
-- Provides an interactive slider to control sample size
-- Measures and compares convergence speed across different distributions
+- Discrete Bayesian inference over explicit hypothesis buckets
+- Beta-Binomial conjugate model for continuous bias estimation
+- Four visualizations showing how beliefs update with evidence
+- 7 tests covering posterior correctness, conjugate updates, and credible intervals
 
-## File Structure
+## Project Structure
 
-```
-central_limit_theorem/
+day-08-bayesian-inference-engine/
 ├── src/
-│   ├── clt.py          # CLTSimulator class
-│   └── visualizer.py   # Four visualisation functions + skewness helper
+│   ├── bayes.py          # BayesianInference — discrete updater
+│   ├── conjugate.py      # BetaBinomial — continuous conjugate model
+│   └── visualizer.py     # Four visualization functions
 ├── tests/
-│   └── test_clt.py     # 7 tests
-├── outputs/
-├── demo.py
+│   └── tests.py          # 7 tests
+├── outputs/              # Saved plots
+├── demo.py               # Runs all visualizations end to end
 ├── problem_statement.md
 ├── approach.md
-└── learnings.md
+├── learnings.md
+└── README.md
+
+## Quick Start
+
+```bash
+pip install matplotlib
+python demo.py
 ```
 
-## Usage
+## Core Classes
+
+### BayesianInference
+
+Discrete Bayesian updater over a fixed set of hypotheses.
 
 ```python
-from src.clt import CLTSimulator
-from src.distribution import Exponential
-
-dist = Exponential(lam=1)
-sim = CLTSimulator(dist)
-
-# run 1000 experiments, each averaging 30 samples
-means = sim.simulate(n_samples=1000, sample_size=30)
-
-# theoretical Gaussian prediction
-mu, sigma = sim.theoretical_gaussian(sample_size=30)
-print(f"Predicted: N({mu:.3f}, {sigma:.3f})")
-```
-
-## Visualisations
-
-```python
-from src.visualizer import (
-    plot_clt_convergence,
-    plot_original_vs_clt,
-    plot_convergence_speed,
-    plot_interactive,
+bi = BayesianInference(
+    prior=[0.25, 0.25, 0.25, 0.25],
+    hypotheses=[0.1, 0.5, 0.6, 0.9]
 )
 
-# grid showing convergence at different sample sizes
-plot_clt_convergence(Exponential(lam=1), sample_sizes=[1, 5, 10, 30], n_experiments=1000)
+posterior = bi.update(n=10, k=7)    # 7 heads in 10 flips
+predicted = bi.predict(n_future=5)  # expected heads in 5 future flips
 
-# side by side: raw distribution vs sample means
-plot_original_vs_clt(Uniform(0, 1), sample_size=30, n_experiments=1000)
-
-# convergence speed comparison across distributions
-plot_convergence_speed({
-    "Uniform(0,1)": Uniform(0, 1),
-    "Exponential(1)": Exponential(lam=1),
-    "Bernoulli(0.3)": Bernoulli(p=0.3),
-}, sample_sizes=[1, 2, 5, 10, 20, 50])
-
-# interactive slider — drag to see CLT in real time
-plot_interactive(Exponential(lam=1))
+# Result: [2.2e-05, 0.3008, 0.5518, 0.1473]
+# h=0.6 wins — consistent with 7/10 heads
 ```
+
+### BetaBinomial
+
+Continuous conjugate model. Treats bias as a Beta-distributed random variable.
+
+```python
+bb = BetaBinomial(alpha=1, beta=1)  # uniform prior — no opinion
+bb = bb.update(heads=7, tails=3)    # observe 7 heads, 3 tails
+print(bb.mean())                     # 0.6667
+print(bb.pdf(0.6))                  # ~2.36
+```
+
+Update rule: `alpha += heads`, `beta += tails`. No integration needed.
+
+## Visualizations
+
+| Function | Chart Type | What It Shows |
+|---|---|---|
+| `plot_prior_likelihood_posterior` | Grouped bar | How evidence shifts belief across hypotheses |
+| `plot_sequential_updating` | Line chart | Belief evolution flip by flip |
+| `plot_beta_updating` | Curve plot | Beta PDF sharpening with evidence |
+| `plot_credible_interval` | Bar chart | Which hypotheses are inside the 95% interval |
+
+## Tests
+
+```bash
+python -m pytest tests/tests.py
+```
+7 passed in 0.13s
+
+| Test | What It Verifies |
+|---|---|
+| `test_posterior_sums_to_one` | Posterior is a valid probability distribution |
+| `test_uniform_prior_with_all_heads` | All heads evidence correctly shifts posterior |
+| `test_strong_prior_resists_evidence` | Strong prior dominates with weak evidence |
+| `test_sequential_updates_converge` | Posterior stabilizes with large data |
+| `test_beta_conjugate_update` | Alpha and beta update correctly |
+| `test_credible_interval_contains_truth` | Posterior mean falls in expected range |
+| `test_posterior_predictive` | Predicted heads falls in sensible range |
+
+## Math
+
+**Bayes Theorem:**
+P(H|E) = P(E|H) × P(H) / P(E)
+
+**Binomial Likelihood:**
+
+P(k heads | n flips, bias h) = C(n,k) × h^k × (1-h)^(n-k)
+
+**Beta-Binomial Conjugate Update:**
+Prior:     Beta(α, β)
+Posterior: Beta(α + heads, β + tails)
+Mean:      α / (α + β)
 
 ## Key Insight
 
-Skewed distributions (Exponential, Bernoulli with extreme p) converge to Gaussian much slower than symmetric distributions (Uniform, Gaussian). Convergence speed depends on the skewness of the original distribution — not just sample size.
-
-## Test Results
-
-```
-7/7 tests passing
-```
+Bayes theorem never changes. Only the likelihood formula changes depending on what generated the data. This engine uses Binomial likelihood — swap that one function and the entire framework supports Poisson, Gaussian, or any other distribution.
 
 ## Dependencies
 
-```
-matplotlib         (visualisation + Slider widget)
-sys, os            (path management for Day 6 imports)
-Day 6 distributions (Gaussian, Uniform, Exponential, Bernoulli, Poisson, Binomial)
-```
+- `matplotlib` — visualizations only
+- No scipy, no numpy, no stats libraries
